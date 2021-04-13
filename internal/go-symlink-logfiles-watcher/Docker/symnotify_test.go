@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/cluster-logging-operator/pkg/go-symlink-logfiles-watcher/pkg/symnotify"
+	"github.com/openshift/cluster-logging-operator/internal/pkg/symnotify"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

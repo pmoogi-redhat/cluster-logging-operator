@@ -1,8 +1,8 @@
 FROM openshift/origin-release:golang-1.15 AS build
 RUN mkdir -p /go-symlink-logfiles-watcher/cmd/go-symlink-logfiles-watcher
 RUN mkdir -p /go-symlink-logfiles-watcher/pkg/symnotify
-COPY ./cmd/go-symlink-logfiles-watcher/symlink-logfiles-watcher.go  /go-symlink-logfiles-watcher/cmd/go-symlink-logfiles-watcher/.
-COPY ./pkg/symnotify/symnotify.go   /go-symlink-logfiles-watcher/pkg/symnotify/.
+COPY ./symlink-logfiles-watcher.go  /go-symlink-logfiles-watcher/cmd/go-symlink-logfiles-watcher/.
+COPY ./symnotify.go   /go-symlink-logfiles-watcher/pkg/symnotify/.
 COPY ./go.mod  /go-symlink-logfiles-watcher/.
 COPY ./go.sum  /go-symlink-logfiles-watcher/.
 WORKDIR /go-symlink-logfiles-watcher

@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 	"net/http"
-	"github.com/openshift/cluster-logging-operator/pkg/go-symlink-logfiles-watcher/pkg/symnotify"
+	"github.com/openshift/cluster-logging-operator/internal/pkg/symnotify"
         "github.com/prometheus/client_golang/prometheus"
         "github.com/prometheus/client_golang/prometheus/promhttp"
 )
