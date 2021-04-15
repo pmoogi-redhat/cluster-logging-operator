@@ -5,7 +5,7 @@ package symnotify
 import (
 	"io"
 	"io/ioutil"
-	"log"
+	"github.com/ViaQ/logerr/log"
 	"math"
 	"os"
 	"path/filepath"
@@ -16,7 +16,9 @@ import (
 type Event = fsnotify.Event
 type Op = fsnotify.Op
 
-var debugOn bool = true
+var (
+debugOn bool = true
+)
 
 const (
 	Create Op = fsnotify.Create
@@ -31,11 +33,6 @@ type Watcher struct {
 	watcher *fsnotify.Watcher
 }
 
-func debug(f string, x ...interface{}) {
-        if debugOn {
-                log.Printf(f, x...)
-        }
-}
 
 func NewWatcher() (*Watcher, error) {
 	w, err := fsnotify.NewWatcher()
@@ -60,18 +57,18 @@ func (w *Watcher) EventTimeout(timeout time.Duration) (e Event, err error) {
 	case !ok:
 		return Event{}, io.EOF
 	case e.Op == Create:
-		debug("Create Event Detected for file e.Name %v",e.Name)
+		log.Info("Create Event Detected for file.." ,"e.Name",e.Name)
 		if info, err := os.Lstat(e.Name); err == nil {
 			if isSymlink(info) {
 				_ = w.watcher.Add(e.Name)
 			}
 		}
 	case e.Op == Remove:
-		debug("Remove Event Detected for file e.Name %v",e.Name)
+		log.Info("Create Event Detected for file.." ,"e.Name",e.Name)
 		w.watcher.Remove(e.Name)
 		w.watcher.Add(e.Name)
 	case e.Op == Chmod || e.Op == Rename :
-		debug("Chmod Event Detected for file e.Name %v",e.Name)
+		log.Info("Create Event Detected for file.." ,"e.Name",e.Name)
 		if info, err := os.Lstat(e.Name); err == nil {
 			if isSymlink(info) {
 				// Symlink target may have changed.
@@ -93,7 +90,7 @@ func (w *Watcher) Add(name string) error {
 	if infos, err := ioutil.ReadDir(name); err == nil {
         for _, info := range infos {
 		if isSymlink(info) {
-		debug("Add file to watcher %v",filepath.Join(name, info.Name()))
+		log.Info("Adding file to watcher ...","filename",filepath.Join(name, info.Name()))
 				_ = w.watcher.Add(filepath.Join(name, info.Name()))
 		}
 	}	}
