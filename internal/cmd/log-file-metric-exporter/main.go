@@ -14,10 +14,8 @@ import (
 
 
 var (
-debugOn bool = true
-containernames string = ""
+ verbosity int = 0
 )
-
 
 
 
@@ -51,14 +49,12 @@ func (w *FileWatcher) Update(path string) error {
                 // File truncated, starting over. Add the size.
                 add = size
         }
-	if debugOn { 
-        log.Info("For logfile in...", "path",path,"lastsize",lastSize,"currentsize",size,"addedbytes",add)
-        } 
+        log.V(2).Info("For logfile in...", "path",path,"lastsize",lastSize,"currentsize",size,"addedbytes",add)
         counter.Add(add)
         return nil
 }
 
-func (w FileWatcher) Watch( ) {
+func (w *FileWatcher) Watch( ) {
 
         
 	for {
@@ -74,9 +70,7 @@ func (w FileWatcher) Watch( ) {
 		os.Exit(1)
 		}
 
-	        if debugOn { 
-                log.Info("Events notified for...", "e.Name",e.Name,"Event",e.Op)
-                } 
+                log.V(2).Info("Events notified for...", "e.Name",e.Name,"Event",e.Op)
                 w.Update(e.Name)
         }
 }
@@ -84,35 +78,34 @@ func (w FileWatcher) Watch( ) {
 
 func main() {
         var dir string
-        var listeningport string
+        var addr string
 
 	//directory to be watched out where symlinks to all logs files are present e.g. /var/log/containers/
 	//debug option true or false
 	//listening port where this go-app push prometheus registered metrics for further collected or reading by end prometheus server
-	flag.StringVar(&dir, "logfilespathname", "/var/log/containers/", "Give the dirname where logfiles are going to be located, default /var/log/containers/")
-	flag.StringVar(&containernames,"containernames","log-stress","Given container names e.g. xxx yyy zzz only their log files are followed default is low-stress")
-	flag.BoolVar(&debugOn, "debug", false, "Give debug option false or true, default set to true")
-	flag.StringVar(&listeningport, "listeningport", ":2112", "Give the listening port where metrics can be exposed to and listened by a running prometheus server, default is :2112")
+	flag.StringVar(&dir, "dir", "/var/log/containers/", "Directory containing log files")
+	flag.IntVar(&verbosity, "verbosity", 0, "set verbosity level")
+	flag.StringVar(&addr, "http", ":2112", "HTTP service address where metrics are exposed")
 	flag.Parse()
 
 
-         if debugOn { 
-          log.Info("Watching out logfiles dir ...", "dir",dir,"containersmatching",containernames,"debug",debugOn,"listeningport",listeningport)
-         } 
+	log.SetLogLevel(verbosity)
+
+        log.V(2).Info("Watching out logfiles dir ...", "dir",dir,"http",addr)
 
 
 	//Get new watcher
         w := &FileWatcher {
                 metrics: prometheus.NewCounterVec(prometheus.CounterOpts{
-                        Name: "logs_files_metric_exporter_input_status_bytes_logged_total",
-                        Help: "logs-files-metric-exporter total bytes logged to disk (log file) ",
+                        Name: "log_logged_bytes_total",
+                        Help: "Total number of bytes written to a single log file path, accounting for rotations",
                 }, []string{"path"}),
                sizes: make(map[string]float64),
                added: make(map[string]bool),
 
         }
-	prometheus.Register(w.metrics)
 	
+	prometheus.Register(w.metrics)
 	defer prometheus.Unregister(w.metrics)
 
 	symwatcher, err := symnotify.NewWatcher()
@@ -122,10 +115,11 @@ func main() {
 		log.Error(err, "NewFileWatcher error")
 		os.Exit(1)
 	}
+	defer w.watcher.Close()
 	//Add dir to watcher
 	 w.watcher.Add(dir)
 
 	go w.Watch()
 	http.Handle("/metrics", promhttp.Handler())
-	http.ListenAndServe(listeningport, nil)
+	http.ListenAndServe(addr, nil)
 }

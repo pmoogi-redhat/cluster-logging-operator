@@ -16,9 +16,6 @@ import (
 type Event = fsnotify.Event
 type Op = fsnotify.Op
 
-var (
-debugOn bool = true
-)
 
 const (
 	Create Op = fsnotify.Create
@@ -57,18 +54,18 @@ func (w *Watcher) EventTimeout(timeout time.Duration) (e Event, err error) {
 	case !ok:
 		return Event{}, io.EOF
 	case e.Op == Create:
-		log.Info("Create Event Detected for file.." ,"e.Name",e.Name)
+		log.V(2).Info("Create Event Detected for file.." ,"e.Name",e.Name)
 		if info, err := os.Lstat(e.Name); err == nil {
 			if isSymlink(info) {
 				_ = w.watcher.Add(e.Name)
 			}
 		}
 	case e.Op == Remove:
-		log.Info("Create Event Detected for file.." ,"e.Name",e.Name)
+		log.V(2).Info("Remove Event Detected for file.." ,"e.Name",e.Name)
 		w.watcher.Remove(e.Name)
 		w.watcher.Add(e.Name)
 	case e.Op == Chmod || e.Op == Rename :
-		log.Info("Create Event Detected for file.." ,"e.Name",e.Name)
+		log.V(2).Info("Chmod or Rename Event Detected for file.." ,"e.Name",e.Name)
 		if info, err := os.Lstat(e.Name); err == nil {
 			if isSymlink(info) {
 				// Symlink target may have changed.
@@ -90,7 +87,7 @@ func (w *Watcher) Add(name string) error {
 	if infos, err := ioutil.ReadDir(name); err == nil {
         for _, info := range infos {
 		if isSymlink(info) {
-		log.Info("Adding file to watcher ...","filename",filepath.Join(name, info.Name()))
+		log.V(2).Info("Adding file to watcher ...","filename",filepath.Join(name, info.Name()))
 				_ = w.watcher.Add(filepath.Join(name, info.Name()))
 		}
 	}	}
