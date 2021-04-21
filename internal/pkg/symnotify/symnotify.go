@@ -62,8 +62,6 @@ func (w *Watcher) EventTimeout(timeout time.Duration) (e Event, err error) {
 		}
 	case e.Op == Remove:
 		log.V(2).Info("Remove Event Detected for file.." ,"e.Name",e.Name)
-		w.watcher.Remove(e.Name)
-		w.watcher.Add(e.Name)
 	case e.Op == Chmod || e.Op == Rename :
 		log.V(2).Info("Chmod or Rename Event Detected for file.." ,"e.Name",e.Name)
 		if info, err := os.Lstat(e.Name); err == nil {
