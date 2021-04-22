@@ -4,6 +4,8 @@ import (
 	"flag"
 	"github.com/ViaQ/logerr/log"
 	"os"
+	"path"
+	"strings"
 	"net/http"
 	"github.com/openshift/cluster-logging-operator/internal/pkg/symnotify"
         "github.com/prometheus/client_golang/prometheus"
@@ -15,6 +17,9 @@ import (
 
 var (
  verbosity int = 0
+ namespace string = "unknown"
+ podname string = "unknown"
+ containername string ="unknown"
 )
 
 
@@ -27,8 +32,8 @@ type FileWatcher struct {
 }
 
 
-func (w *FileWatcher) Update(path string) error {
-        counter, err := w.metrics.GetMetricWithLabelValues(path)
+func (w *FileWatcher) Update(path string, namespace string, podname string, containername string) error {
+        counter, err := w.metrics.GetMetricWithLabelValues(path,namespace,podname,containername)
         if err != nil {
                 return err
         }
@@ -50,7 +55,7 @@ func (w *FileWatcher) Update(path string) error {
                 add = size
         }
         log.V(2).Info("For logfile in...", "path",path,"lastsize",lastSize,"currentsize",size,"addedbytes",add)
-        counter.Add(add)
+	counter.Add(add)
         return nil
 }
 
@@ -71,7 +76,27 @@ func (w *FileWatcher) Watch( ) {
 		}
 
                 log.V(2).Info("Events notified for...", "e.Name",e.Name,"Event",e.Op)
-                w.Update(e.Name)
+
+		//Get namespace, podname, containername from e.Name - log file path
+		//filename := strings.Trim(e.Name,"/var/log/containers/")
+		_,filename := path.Split(e.Name)
+                filename = strings.TrimRight(filename,".log")
+                log.V(2).Info("file name after trimming","filename", filename)
+                filenameslice := strings.Split(filename,"_")
+		if (len(filenameslice) == 3) {
+		  podname = filenameslice[0]
+                  namespace = filenameslice[1]
+                  containername = filenameslice[2]
+	        } else {
+	          namespace="unknown"
+                  podname="unknown"
+                  containername = "unknown"
+          	}
+
+                log.V(2).Info("Namespace podname containername...","namespace", namespace, "podname", podname, "containername", containername)
+
+
+                w.Update(e.Name,namespace,podname,containername)
         }
 }
 
@@ -99,7 +124,7 @@ func main() {
                 metrics: prometheus.NewCounterVec(prometheus.CounterOpts{
                         Name: "log_logged_bytes_total",
                         Help: "Total number of bytes written to a single log file path, accounting for rotations",
-                }, []string{"path"}),
+                }, []string{"path","namespace","podname","containername"}),
                sizes: make(map[string]float64),
                added: make(map[string]bool),
 
