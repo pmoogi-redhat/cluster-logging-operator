@@ -85,7 +85,7 @@ func (w *Watcher) Add(name string) error {
 	if infos, err := ioutil.ReadDir(name); err == nil {
         for _, info := range infos {
 		if isSymlink(info) {
-		log.V(2).Info("Adding file to watcher ...","filename",filepath.Join(name, info.Name()))
+		log.V(3).Info("Adding file to watcher ...","filename",filepath.Join(name, info.Name()))
 				_ = w.watcher.Add(filepath.Join(name, info.Name()))
 		}
 	}	}
