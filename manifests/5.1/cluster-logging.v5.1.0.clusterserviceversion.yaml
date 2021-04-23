@@ -325,6 +325,8 @@ spec:
                     value: "quay.io/openshift/origin-logging-fluentd:latest"
                   - name: CURATOR_IMAGE
                     value: "quay.io/openshift/origin-logging-curator5:latest"
+                  - name: IMAGE_LOG_METRIC_EXPORTER
+                  - value: quay.io/openshift/origin-cluster-logging-operator:latest
   customresourcedefinitions:
     owned:
     - name: clusterloggings.logging.openshift.io

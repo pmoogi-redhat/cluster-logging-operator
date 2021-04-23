@@ -35,6 +35,8 @@ const (
 	fluentdName              = "fluentd"
 	syslogName               = "syslog"
 	fluentdRequiredESVersion = "6"
+	logVolumeMountName       = "varlog"
+	logVolumePath            = "/var/log"
 )
 
 func (clusterRequest *ClusterLoggingRequest) removeFluentd() (err error) {
@@ -86,6 +88,11 @@ func (clusterRequest *ClusterLoggingRequest) reconcileFluentdService() error {
 				Port:       metricsPort,
 				TargetPort: intstr.FromString(metricsPortName),
 				Name:       metricsPortName,
+			},
+			{
+				Port:       exporterPort,
+				TargetPort: intstr.FromString(exporterPortName),
+				Name:       exporterPortName,
 			},
 		},
 	)
@@ -142,6 +149,11 @@ func (clusterRequest *ClusterLoggingRequest) reconcileFluentdServiceMonitor() er
 			// ServerName can be e.g. fluentd.openshift-logging.svc
 		},
 	}
+	logMetricExporterEndpoint := monitoringv1.Endpoint{
+		Port:   metricsPortName,
+		Path:   "/metrics",
+		Scheme: "http",
+	}
 
 	labelSelector := metav1.LabelSelector{
 		MatchLabels: map[string]string{
@@ -151,7 +163,7 @@ func (clusterRequest *ClusterLoggingRequest) reconcileFluentdServiceMonitor() er
 
 	desired.Spec = monitoringv1.ServiceMonitorSpec{
 		JobLabel:  "monitor-fluentd",
-		Endpoints: []monitoringv1.Endpoint{endpoint},
+		Endpoints: []monitoringv1.Endpoint{endpoint,logMetricExporterEndpoint},
 		Selector:  labelSelector,
 		NamespaceSelector: monitoringv1.NamespaceSelector{
 			MatchNames: []string{cluster.Namespace},
@@ -337,6 +349,26 @@ func (clusterRequest *ClusterLoggingRequest) createOrUpdateFluentdSecret() error
 	return nil
 }
 
+func newLogMetricExporterContainer() v1.Container {
+	resources := v1.ResourceRequirements{}
+	container := NewContainer(constants.LogMetricExporterName, constants.LogMetricExporterName, v1.PullIfNotPresent, resources)
+	container.Command = []string{"log-file-metric-exporter"}
+	container.VolumeMounts = []v1.VolumeMount{
+		{Name: logVolumeMountName, MountPath: logVolumePath},
+	}
+	container.Ports = []v1.ContainerPort{
+		{
+			Name:          exporterPortName,
+			ContainerPort: exporterPort,
+			Protocol:      v1.ProtocolTCP,
+		},
+	}
+	container.SecurityContext = &v1.SecurityContext{
+		Privileged: utils.GetBool(true),
+	}
+	return container
+}
+
 func newFluentdPodSpec(cluster *logging.ClusterLogging, trustedCABundleCM *v1.ConfigMap, pipelineSpec logging.ClusterLogForwarderSpec) v1.PodSpec {
 	collectionSpec := logging.CollectionSpec{}
 	if cluster.Spec.Collection != nil {
@@ -384,7 +416,7 @@ func newFluentdPodSpec(cluster *logging.ClusterLogging, trustedCABundleCM *v1.Co
 	fluentdContainer.Env = append(fluentdContainer.Env, proxyEnv...)
 
 	fluentdContainer.VolumeMounts = []v1.VolumeMount{
-		{Name: "varlog", MountPath: "/var/log"},
+		{Name: logVolumeMountName, MountPath: logVolumePath},
 		{Name: "varlibdockercontainers", ReadOnly: true, MountPath: "/var/lib/docker"},
 		{Name: "config", ReadOnly: true, MountPath: "/etc/fluent/configs.d/user"},
 		{Name: "secureforwardconfig", ReadOnly: true, MountPath: "/etc/fluent/configs.d/secure-forward"},
@@ -446,11 +478,13 @@ func newFluentdPodSpec(cluster *logging.ClusterLogging, trustedCABundleCM *v1.Co
 		},
 	)
 
+	exporterContainer := newLogMetricExporterContainer()
+
 	fluentdPodSpec := NewPodSpec(
 		"logcollector",
-		[]v1.Container{fluentdContainer},
+		[]v1.Container{fluentdContainer, exporterContainer},
 		[]v1.Volume{
-			{Name: "varlog", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/var/log"}}},
+			{Name: logVolumeMountName, VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: logVolumePath}}},
 			{Name: "varlibdockercontainers", VolumeSource: v1.VolumeSource{HostPath: &v1.HostPathVolumeSource{Path: "/var/lib/docker"}}},
 			{Name: "config", VolumeSource: v1.VolumeSource{ConfigMap: &v1.ConfigMapVolumeSource{LocalObjectReference: v1.LocalObjectReference{Name: "fluentd"}}}},
 			{Name: "secureforwardconfig", VolumeSource: v1.VolumeSource{ConfigMap: &v1.ConfigMapVolumeSource{LocalObjectReference: v1.LocalObjectReference{Name: "secure-forward"}, Optional: utils.GetBool(true)}}},
