@@ -120,7 +120,12 @@ func main() {
 
 
 	//Get new watcher
+	symwatcher, err := symnotify.NewWatcher()
+	if err != nil {
+		log.Error(err, "NewFileWatcher error")
+	}
         w := &FileWatcher {
+		watcher: symwatcher
                 metrics: prometheus.NewCounterVec(prometheus.CounterOpts{
                         Name: "log_logged_bytes_total",
                         Help: "Total number of bytes written to a single log file path, accounting for rotations",
@@ -129,17 +134,12 @@ func main() {
                added: make(map[string]bool),
 
         }
+
 	
 	prometheus.Register(w.metrics)
 	defer prometheus.Unregister(w.metrics)
 
-	symwatcher, err := symnotify.NewWatcher()
-	w.watcher = symwatcher
 	
-	if err != nil {
-		log.Error(err, "NewFileWatcher error")
-		os.Exit(1)
-	}
 	defer w.watcher.Close()
 	//Add dir to watcher
 	 w.watcher.Add(dir)
