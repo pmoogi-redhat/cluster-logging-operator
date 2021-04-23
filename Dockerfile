@@ -32,6 +32,7 @@ RUN INSTALL_PKGS=" \
     mkdir /tmp/ocp-clo && \
     chmod og+w /tmp/ocp-clo
 COPY --from=builder /go/src/github.com/openshift/cluster-logging-operator/bin/cluster-logging-operator /usr/bin/
+COPY --from=builder /go/src/github.com/openshift/cluster-logging-operator/bin/log-file-metric-exporter /usr/bin/
 COPY --from=builder /go/src/github.com/openshift/cluster-logging-operator/scripts/* /usr/bin/scripts/
 
 RUN mkdir -p /usr/share/logging/

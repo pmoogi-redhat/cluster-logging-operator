@@ -61,10 +61,13 @@ bin/forwarder-generator: force
 bin/cluster-logging-operator: force
 	go build $(BUILD_OPTS) -o $@ ./cmd/manager
 
+bin/log-file-metric-exporter: force
+	go build $(BUILD_OPTS) -o $@ ./internal/cmd/log-file-metric-exporter 
+
 openshift-client:
 	@type -p oc > /dev/null || bash hack/get-openshift-client.sh
 
-build: bin/cluster-logging-operator
+build: bin/cluster-logging-operator bin/log-file-metric-exporter
 
 build-debug:
 	$(MAKE) build BUILD_OPTS='-gcflags=all="-N -l"'
