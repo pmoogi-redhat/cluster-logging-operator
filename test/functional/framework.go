@@ -24,6 +24,8 @@ import (
 	"github.com/openshift/cluster-logging-operator/test"
 	"github.com/openshift/cluster-logging-operator/test/client"
 	"github.com/openshift/cluster-logging-operator/test/helpers/cmd"
+
+	//"github.com/openshift/cluster-logging-operator/test/helpers/kafka"
 	"github.com/openshift/cluster-logging-operator/test/helpers/oc"
 	"github.com/openshift/cluster-logging-operator/test/runtime"
 	corev1 "k8s.io/api/core/v1"
@@ -61,6 +63,12 @@ var outputLogFile = map[string]map[string]string{
 		auditLog:       "/var/log/infra.log",
 		k8sAuditLog:    "/var/log/infra.log",
 		ovnAuditLog:    "/var/log/infra.log",
+	},
+	logging.OutputTypeKafka: {
+		applicationLog: "/var/log/app.log",
+		auditLog:       "/var/log/infra.log",
+		k8sAuditLog:    "/var/log/audit.log",
+		ovnAuditLog:    "/var/log/ovnaudit-log.log",
 	},
 }
 
@@ -206,6 +214,9 @@ func (f *FluentdFunctionalFramework) DeployWithVisitors(visitors []runtime.PodBu
 	if f.Conf, err = forwarder.Generate(string(clfYaml), false, debug_output, &testClient); err != nil {
 		return err
 	}
+	//overriding fluent config with Kafka specifics tls.key, crts, ca settings, this needs to done at Generator level though
+	//f.Conf = kafka.FluentKafkaConf
+
 	log.V(2).Info("Generating Certificates")
 	if err, _, _ = certificates.GenerateCertificates(f.Test.NS.Name,
 		test.GitRoot("scripts"), "elasticsearch",
@@ -253,7 +264,7 @@ done
 	role := runtime.NewRole(f.Test.NS.Name, f.Name,
 		v1.PolicyRule{
 			Verbs:     []string{"list", "get"},
-			Resources: []string{"pods", "namespaces"},
+			Resources: []string{"nodes", "pods", "namespaces"},
 			APIGroups: []string{""},
 		},
 	)
@@ -290,6 +301,7 @@ done
 		AddVolumeMount("entrypoint", "/opt/app-root/src/run.sh", "run.sh", true).
 		AddVolumeMount("certs", "/etc/fluent/metrics", "", true).
 		End()
+
 	for _, visit := range visitors {
 		if err = visit(b); err != nil {
 			return err
@@ -357,6 +369,10 @@ func (f *FluentdFunctionalFramework) addOutputContainers(b *runtime.PodBuilder, 
 			}
 		case logging.OutputTypeSyslog:
 			if err := f.addSyslogOutput(b, output); err != nil {
+				return err
+			}
+		case logging.OutputTypeKafka:
+			if err := f.addKafkaOutput(b, output); err != nil {
 				return err
 			}
 		case logging.OutputTypeElasticsearch:
@@ -470,6 +486,27 @@ func (f *FluentdFunctionalFramework) WriteMessagesToLog(msg string, numOfLogs in
 
 func (f *FluentdFunctionalFramework) ReadApplicationLogsFrom(outputName string) ([]string, error) {
 	return f.ReadLogsFrom(outputName, applicationLog)
+}
+
+func (f *FluentdFunctionalFramework) ReadApplicationLogsFromKafka(topic string, brokerlistener string, consumercontainername string) (results []string, err error) {
+	//inter broker zookeeper connect is plaintext so use plaintext port to check on sent messages from kafka producer ie. fluent-kafka plugin
+	//till this step it must be ensured that a topic is created and published in kafka-consumer-clo-app-topic container within functional pod
+	var result string
+	outputFilename := "/shared/consumed.logs"
+	cmd := fmt.Sprintf("tail -1 %s", outputFilename)
+	err = wait.PollImmediate(defaultRetryInterval, maxDuration, func() (done bool, err error) {
+		result, err = f.RunCommand(consumercontainername, "/bin/bash", "-c", cmd)
+		if result != "" && err == nil {
+			return true, nil
+		}
+		log.V(4).Error(err, "Polling logs from kafka")
+		return false, nil
+	})
+	if err == nil {
+		results = strings.Split(strings.TrimSpace(result), "\n")
+	}
+	log.V(4).Info("Returning", "logs", result)
+	return results, err
 }
 
 func (f *FluentdFunctionalFramework) ReadAuditLogsFrom(outputName string) ([]string, error) {

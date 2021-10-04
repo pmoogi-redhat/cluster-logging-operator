@@ -338,6 +338,16 @@ func NewBrokerConfigMap(namespace string) *v1.ConfigMap {
 	return k8shandler.NewConfigMap(DeploymentName, namespace, data)
 }
 
+func NewBrokerConfigMapFunctionalTestPod(namespace string) *v1.ConfigMap {
+	data := map[string]string{
+		"init.sh":           functionalPodinitKafkaScript,
+		"server.properties": functionalPodserverProperties,
+		"client.properties": functionalPodclientProperties,
+		"log4j.properties":  functionalPodlog4jProperties,
+	}
+	return k8shandler.NewConfigMap(DeploymentName, namespace, data)
+}
+
 func NewBrokerSecret(namespace string) *v1.Secret {
 	rootCA := certificate.NewCA(nil, "Root CA")
 	intermediateCA := certificate.NewCA(rootCA, "Intermediate CA")
@@ -349,6 +359,29 @@ func NewBrokerSecret(namespace string) *v1.Secret {
 		"ca-bundle.crt": bytes.Join([][]byte{rootCA.CertificatePEM(), intermediateCA.CertificatePEM()}, []byte{}),
 	}
 
+	secret := k8shandler.NewSecret(
+		DeploymentName,
+		namespace,
+		data,
+	)
+	return secret
+}
+
+func NewBrokerSecretFunctionalTestPod(namespace string) *v1.Secret {
+
+	// Receiver acts as TLS server.
+	privateCA := certificate.NewCA(nil, "Root CA")
+	serverCert := certificate.NewCert(privateCA, "Server", "localhost") // Receiver is server.
+	clientCert := certificate.NewCert(privateCA, "Client")
+
+	data := map[string][]byte{
+		"server.jks":    certificate.JKSKeyStore(serverCert, "server"),
+		"ca-bundle.jks": certificate.JKSTrustStore([]*certificate.CertKey{privateCA, serverCert}, "ca-bundle"),
+		"ca-bundle.crt": privateCA.CertificatePEM(),
+		"ca.key":        privateCA.PrivateKeyPEM(),
+		"tls.crt":       clientCert.CertificatePEM(),
+		"tls.key":       clientCert.PrivateKeyPEM(),
+	}
 	secret := k8shandler.NewSecret(
 		DeploymentName,
 		namespace,

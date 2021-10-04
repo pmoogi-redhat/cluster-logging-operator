@@ -1,0 +1,162 @@
+package functional
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/ViaQ/logerr/log"
+	logging "github.com/openshift/cluster-logging-operator/apis/logging/v1"
+	"github.com/openshift/cluster-logging-operator/internal/constants"
+	"github.com/openshift/cluster-logging-operator/test/helpers/kafka"
+	"github.com/openshift/cluster-logging-operator/test/runtime"
+)
+
+const (
+	// Kafka deployment definitions
+	ImageRemoteKafka            = kafka.KafkaImage
+	ImageRemoteKafkaInit        = kafka.KafkaInitUtilsImage
+	kafkaBrokerContainerName    = "broker"
+	kafkaZookeeperContainerName = "zookeeper"
+
+	kafkaInsidePort         = int32(9093)
+	kafkaOutsidePort        = int32(9094)
+	kafkaJMXPort            = int32(5555)
+	zookeeperDeploymentName = "zookeeper"
+
+	zookeeperClientPort         = int32(2181)
+	zookeeperPeerPort           = int32(2888)
+	zookeeperLeaderElectionPort = int32(3888)
+)
+
+func (f *FluentdFunctionalFramework) addKafkaOutput(b *runtime.PodBuilder, output logging.OutputSpec) error {
+	log.V(2).Info("Adding kafka output", "name", output.Name)
+	name := strings.ToLower(output.Name)
+
+	log.V(2).Info("Standing up Kafka instance", "name", name)
+	//steps to deploy kafka single node cluster a. Deploy Zookeeper b. Deploy Broker c. Deploy kafka Consumer
+
+	//step a
+	// Deploy Zookeeper steps : create configmap, create container, create zookeeper service
+
+	//zookeeperm - configmap with zookeeperDeploymentName being "zookeeper", in b.Pod.Namespace
+	zookeepercm := kafka.NewZookeeperConfigMapFunctionalTestPod(b.Pod.Namespace)
+	log.V(2).Info("Creating zookeeper configmap", "namespace", zookeepercm.Namespace, "name", zookeepercm.Name)
+	if err := f.Test.Client.Create(zookeepercm); err != nil {
+		return err
+	}
+
+	//init container for zookeep
+	b.AddInitContainer("init-config0", ImageRemoteKafkaInit).
+		AddVolumeMountToInitContainer("configmapkafka", "/etc/kafka-configmap", "", false, 0).
+		AddVolumeMountToInitContainer("configkafka", "/etc/kafka", "", false, 0).
+		AddVolumeMountToInitContainer("datazookeeper", "/var/lib/zookeeper", "", false, 0).
+		WithCmdArgsToInitContainer([]string{"./bin/bash", "/etc/kafka-configmap/init.sh"}, 0)
+
+	//standup container running zookeeper
+	log.V(2).Info("Adding container", "name", name)
+	b.AddContainer(kafkaZookeeperContainerName, ImageRemoteKafka).
+		AddEnvVar("KAFKA_LOG4J_OPTS", "-Dlog4j.configuration=file:/etc/kafka/log4j.properties").
+		AddContainerPort("client", zookeeperClientPort).
+		AddContainerPort("peer", zookeeperPeerPort).
+		AddContainerPort("leader-election", zookeeperLeaderElectionPort).
+		AddVolumeMount("configmapkafka", "/etc/kafka-configmap", "", false).
+		AddVolumeMount("configkafka", "/etc/kafka", "", false).
+		AddVolumeMount("datazookeeper", "/var/lib/zookeeper", "", false).
+		WithCmd("./bin/zookeeper-server-start.sh /etc/kafka/zookeeper.properties").
+		End().
+		AddConfigMapVolume("configmapkafka", zookeeperDeploymentName).
+		AddEmptyDirVolume("configkafka").
+		AddEmptyDirVolume("zookeeperlogs").
+		AddEmptyDirVolume("datazookeeper")
+
+	///////////////////////////////////
+
+	//step b
+	// Deploy Broker steps : create configmap, create container, create broker service
+
+	// configmap for broker with DeploymentName=kafka, b.Pod.Namespace, and data specific to broker
+	brokercm := kafka.NewBrokerConfigMapFunctionalTestPod(b.Pod.Namespace)
+	log.V(2).Info("Creating Broker ConfigMap", "namespace", brokercm.Namespace, "name", brokercm.Name)
+	if err := f.Test.Client.Create(brokercm); err != nil {
+		return err
+	}
+
+	//Doing below at the time of creating spec for fluentd container now as tls.key, tls.crts need to be mounted on fluentd pod
+	brokersecret := kafka.NewBrokerSecretFunctionalTestPod(b.Pod.Namespace)
+	if err := f.Test.Client.Create(brokersecret); err != nil {
+		return err
+	}
+	//add brokersecret generated keys,certs to fluentd container
+
+	b.AddSecretVolume("brokercerts", kafka.DeploymentName).
+		GetContainer(constants.CollectorName).
+		AddVolumeMount("brokercerts", "/etc/kafka-certs", "", true)
+
+	//	fluentKafkaConf := kafka.FluentKafkaConf
+
+	//standup pod with container running broker
+	b.AddInitContainer("init-config1", ImageRemoteKafkaInit).
+		AddEnvVarToInitContainer("NODE_NAME", "functional-test-node", 1).
+		AddEnvVarToInitContainer("POD_NAME", "functional", 1).
+		AddEnvVarToInitContainer("POD_NAMESPACE", b.Pod.Namespace, 1).
+		AddEnvVarToInitContainer("ADVERTISE_ADDR", fmt.Sprintf("%s.%s.svc.cluster.local", kafka.DeploymentName, b.Pod.Namespace), 1).
+		WithCmdArgsToInitContainer([]string{"/bin/bash", "/etc/kafka-configmap/init.sh"}, 1).
+		AddVolumeMountToInitContainer("brokerconfig", "/etc/kafka-configmap", "", false, 1).
+		AddVolumeMountToInitContainer("configkafka", "/etc/kafka", "", false, 1).
+		AddVolumeMountToInitContainer("extensions", "/opt/kafka/libs/extensions", "", false, 1)
+
+	cmdCreateTopicAndDeployBroker := "./bin/kafka-server-start.sh /etc/kafka-configmap/server.properties"
+
+	log.V(2).Info("Adding container", "name", name)
+	b.AddContainer(kafkaBrokerContainerName, ImageRemoteKafka).
+		AddEnvVar("CLASSPATH", "/opt/kafka/libs/extensions/*").
+		AddEnvVar("KAFKA_LOG4J_OPTS", "-Dlog4j.configuration=file:/etc/kafka/log4j.properties").
+		AddEnvVar("JMX_PORT", strconv.Itoa(int(kafkaJMXPort))).
+		AddContainerPort("inside", kafkaInsidePort).
+		AddContainerPort("outside", kafkaOutsidePort).
+		AddContainerPort("jmx", kafkaJMXPort).
+		//WithCmd("./bin/kafka-server-start.sh /etc/kafka-configmap/server.properties").
+		WithCmdStringSlice([]string{"/bin/bash", "-c", cmdCreateTopicAndDeployBroker}).
+		AddVolumeMount("brokerconfig", "/etc/kafka-configmap", "", false).
+		AddVolumeMount("configkafka", "/etc/kafka", "", false).
+		AddVolumeMount("brokerlogs", "/opt/kafka/logs", "", false).
+		AddVolumeMount("brokercerts", "/etc/kafka-certs", "", false).
+		AddEnvVar("extensions", "/opt/kafka/libs/extensions").
+		AddEnvVar("data", "/var/lib/kafka/data").
+		End().
+		AddConfigMapVolume("brokerconfig", kafka.DeploymentName).
+		//		AddSecretVolume("brokercerts", kafka.DeploymentName).
+		AddEmptyDirVolume("brokerlogs").
+		AddEmptyDirVolume("extensions")
+
+	/////////////////////////////////////////////
+	//step c
+	topics := []string{kafka.AppLogsTopic}
+
+	for _, topic := range topics {
+		containername := kafka.ConsumerNameForTopic(topic)
+		// Deploy consumer  - reference implementation followed from the e2e kafka test as below
+		//consumerapp := kafka.NewKafkaConsumerDeployment(OpenshiftLoggingNS, topic)
+
+		log.V(2).Info("Creating a Topic and Deploying Consumer app")
+		//create topic and deploy consumer app
+		cmdCreateTopic := fmt.Sprintf(`./bin/kafka-topics.sh --zookeeper localhost:2181 --create --if-not-exists --topic %s --partitions 1 --replication-factor 1 ;`, topic)
+		cmdRunConsumer := fmt.Sprintf(`./bin/kafka-console-consumer.sh --bootstrap-server %s --topic %s --from-beginning > /shared/consumed.logs ;`, "localhost:9092", topic)
+		cmdSlice := []string{"sleep 120;", cmdCreateTopic, cmdRunConsumer}
+		cmdJ := strings.Join(cmdSlice, "")
+		cmdCreateTopicAndDeployConsumer := []string{"/bin/bash", "-c", cmdJ}
+
+		b.AddContainer(containername, ImageRemoteKafka).
+			WithCmdStringSlice(cmdCreateTopicAndDeployConsumer).
+			AddVolumeMount("brokerconfig", "/etc/kafka-configmap", "", false).
+			AddVolumeMount("brokercert", "/etc/kafka-certs", "", false).
+			AddVolumeMount("shared", "/shared", "", false).
+			End().
+			AddSecretVolume("brokercert", kafka.DeploymentName).
+			AddEmptyDirVolume("shared")
+
+	}
+
+	return nil
+}
