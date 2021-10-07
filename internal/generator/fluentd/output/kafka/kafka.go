@@ -41,10 +41,6 @@ func (k Kafka) Template() string {
 brokers {{.Brokers}}
 default_topic {{.Topics}}
 use_event_time true
-ssl_client_cert_key '/etc/kafka-certs/tls.key'
-ssl_client_cert '/etc/kafka-certs/tls.crt'
-ssl_ca_cert '/etc/kafka-certs/ca-bundle.crt'
-sasl_over_ssl false
 {{- with $x := compose .SecurityConfig }}
 {{$x}}
 {{- end}}

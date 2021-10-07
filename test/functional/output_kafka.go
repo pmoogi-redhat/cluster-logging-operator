@@ -83,15 +83,15 @@ func (f *FluentdFunctionalFramework) addKafkaOutput(b *runtime.PodBuilder, outpu
 	}
 
 	//Doing below at the time of creating spec for fluentd container now as tls.key, tls.crts need to be mounted on fluentd pod
-	brokersecret := kafka.NewBrokerSecretFunctionalTestPod(b.Pod.Namespace)
-	if err := f.Test.Client.Create(brokersecret); err != nil {
-		return err
-	}
-	//add brokersecret generated keys,certs to fluentd container
+	//brokersecret := kafka.NewBrokerSecretFunctionalTestPod(b.Pod.Namespace)
+	//if err := f.Test.Client.Create(brokersecret); err != nil {
+	//	return err
+	//}
+	//add broker secret containing keys,certs for secure connection in the below fluentd container
 
-	b.AddSecretVolume("brokercerts", kafka.DeploymentName).
+	b.AddSecretVolume("kafka-certs", kafka.DeploymentName).
 		GetContainer(constants.CollectorName).
-		AddVolumeMount("brokercerts", "/etc/kafka-certs", "", true)
+		AddVolumeMount("kafka-certs", "/var/run/ocp-collector/secrets/kafka-certs", "", true)
 
 	//	fluentKafkaConf := kafka.FluentKafkaConf
 
@@ -116,17 +116,15 @@ func (f *FluentdFunctionalFramework) addKafkaOutput(b *runtime.PodBuilder, outpu
 		AddContainerPort("inside", kafkaInsidePort).
 		AddContainerPort("outside", kafkaOutsidePort).
 		AddContainerPort("jmx", kafkaJMXPort).
-		//WithCmd("./bin/kafka-server-start.sh /etc/kafka-configmap/server.properties").
 		WithCmdStringSlice([]string{"/bin/bash", "-c", cmdCreateTopicAndDeployBroker}).
 		AddVolumeMount("brokerconfig", "/etc/kafka-configmap", "", false).
 		AddVolumeMount("configkafka", "/etc/kafka", "", false).
 		AddVolumeMount("brokerlogs", "/opt/kafka/logs", "", false).
-		AddVolumeMount("brokercerts", "/etc/kafka-certs", "", false).
+		AddVolumeMount("kafka-certs", "/var/run/ocp-collector/secrets/kafka-certs", "", false).
 		AddEnvVar("extensions", "/opt/kafka/libs/extensions").
 		AddEnvVar("data", "/var/lib/kafka/data").
 		End().
 		AddConfigMapVolume("brokerconfig", kafka.DeploymentName).
-		//		AddSecretVolume("brokercerts", kafka.DeploymentName).
 		AddEmptyDirVolume("brokerlogs").
 		AddEmptyDirVolume("extensions")
 
@@ -150,10 +148,10 @@ func (f *FluentdFunctionalFramework) addKafkaOutput(b *runtime.PodBuilder, outpu
 		b.AddContainer(containername, ImageRemoteKafka).
 			WithCmdStringSlice(cmdCreateTopicAndDeployConsumer).
 			AddVolumeMount("brokerconfig", "/etc/kafka-configmap", "", false).
-			AddVolumeMount("brokercert", "/etc/kafka-certs", "", false).
+			AddVolumeMount("kafka-certs", "/var/run/ocp-collector/secrets/kafka-certs", "", false).
 			AddVolumeMount("shared", "/shared", "", false).
 			End().
-			AddSecretVolume("brokercert", kafka.DeploymentName).
+			//AddSecretVolume("kafka-certs", kafka.DeploymentName).
 			AddEmptyDirVolume("shared")
 
 	}

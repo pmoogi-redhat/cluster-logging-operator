@@ -1,6 +1,7 @@
 package outputs
 
 import (
+	"github.com/ViaQ/logerr/log"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	logging "github.com/openshift/cluster-logging-operator/apis/logging/v1"
@@ -18,7 +19,15 @@ var _ = Describe("[LogForwarding][Kafka] Functional tests", func() {
 
 	BeforeEach(func() {
 		framework = functional.NewFluentdFunctionalFramework()
+
+		log.V(2).Info("Creating secret for broker credentials")
+		brokersecret := kafka.NewBrokerSecret(framework.Namespace)
+		if err := framework.Test.Client.Create(brokersecret); err != nil {
+			panic(err)
+		}
+
 	})
+
 	AfterEach(func() {
 		framework.Cleanup()
 	})
@@ -41,12 +50,13 @@ var _ = Describe("[LogForwarding][Kafka] Functional tests", func() {
 	//	timestamp := "2013-03-28T14:36:03.243000+00:00"
 
 	Context("Application Logs", func() {
-		It("should send large message over Kafka", func() {
+		FIt("should send large message over Kafka", func() {
 			functional.NewClusterLogForwarderBuilder(framework.Forwarder).
 				FromInput(logging.InputNameApplication).
 				ToOutputWithVisitor(join(setKafkaSpecValues, func(spec *logging.OutputSpec) {
 					//at this port fluent connects with kafka broker
 					spec.URL = "https://localhost:9093"
+					spec.Secret.Name = "kafka-receiver"
 				}), logging.OutputTypeKafka)
 			Expect(framework.Deploy()).To(BeNil())
 

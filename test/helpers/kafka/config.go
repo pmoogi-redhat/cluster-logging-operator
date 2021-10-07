@@ -309,7 +309,7 @@ const (
 
 	functionalPodclientProperties = `
       security.protocol=SSL
-      ssl.truststore.location=/etc/kafka-certs/ca-bundle.jks
+      ssl.truststore.location=/var/run/ocp-collector/secrets/kafka-certs/ca-bundle.jks
       ssl.truststore.type=JKS
       ssl.truststore.password=ca-bundle
     `
@@ -357,7 +357,7 @@ const (
 
       listeners=PLAINTEXT://:9092,SSL://:9093
       ssl.keystore.type=JKS
-      ssl.keystore.location=/etc/kafka-certs/server.jks
+      ssl.keystore.location=/var/run/ocp-collector/secrets/kafka-certs/server.jks
       ssl.keystore.password=server
 
       # Hostname and port the broker will advertise to producers and consumers. If not set,

@@ -11,7 +11,7 @@ const (
 	AppLogsTopic           = "clo-app-topic"
 	AuditLogsTopic         = "clo-audit-topic"
 	InfraLogsTopic         = "clo-infra-topic"
-	DeploymentName         = "kafka"
+	DeploymentName         = "kafka-receiver"
 	ConsumerDeploymentName = "kafka-consumer"
 	kafkaImageRepoOrg      = "quay.io/openshift-logging/"
 	kafkaImageTag          = "2.7.0"
