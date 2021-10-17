@@ -100,6 +100,9 @@ func (p *PipelineBuilder) ToOutputWithVisitor(visit OutputSpecVisiter, outputNam
 				Name: logging.OutputTypeKafka,
 				Type: logging.OutputTypeKafka,
 				URL:  "https://0.0.0.0:9093",
+				Secret: &logging.OutputSecretSpec{
+					Name: "kafka-receiver",
+				},
 			}
 		}
 

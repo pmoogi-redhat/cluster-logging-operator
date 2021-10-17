@@ -3,7 +3,9 @@ package forwarder
 import (
 	"errors"
 	"fmt"
+
 	fluentd2 "github.com/openshift/cluster-logging-operator/internal/generator/fluentd"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
@@ -24,6 +26,8 @@ const (
 func Generate(clfYaml string, includeDefaultLogStore, debugOutput bool, client *client.Client) (string, error) {
 
 	var err error
+	var outputsecrets = map[string]*v1.Secret{}
+
 	g := generator.MakeGenerator()
 	op := generator.Options{}
 	if useOldRemoteSyslogPlugin {
@@ -72,14 +76,33 @@ func Generate(clfYaml string, includeDefaultLogStore, debugOutput bool, client *
 	}
 	if logCollectorType == logging.LogCollectionTypeFluentd {
 
-		sections := fluentd2.Conf(&clspec, nil, spec, op)
-		es := generator.MergeSections(sections)
+		//passing a secret for a secure connection between fluentd output plugin and forwarder endpoint
 
-		generatedConfig, err := g.GenerateConf(es...)
-		if err != nil {
-			return "", fmt.Errorf("Unable to generate log configuration: %v", err)
+		if spec.Outputs[0].Secret == nil {
+			sections := fluentd2.Conf(&clspec, nil, spec, op)
+			es := generator.MergeSections(sections)
+			generatedConfig, err := g.GenerateConf(es...)
+			if err != nil {
+				return "", fmt.Errorf("Unable to generate log configuration: %v", err)
+			}
+			return generatedConfig, nil
+
+		} else {
+			osecret, err := clRequest.GetSecret(spec.Outputs[0].Secret.Name)
+			if err != nil {
+				return "", fmt.Errorf("Unable to get secret: %v", err)
+			}
+			outputsecrets[spec.Outputs[0].Secret.Name] = osecret
+			sections := fluentd2.Conf(&clspec, outputsecrets, spec, op)
+			es := generator.MergeSections(sections)
+			generatedConfig, err := g.GenerateConf(es...)
+			if err != nil {
+				return "", fmt.Errorf("Unable to generate log configuration: %v", err)
+			}
+			return generatedConfig, nil
+
 		}
-		return generatedConfig, nil
+
 	} else {
 		return "", errors.New("Only fluentd Log Collector supported")
 	}

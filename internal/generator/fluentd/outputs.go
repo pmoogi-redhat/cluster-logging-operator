@@ -13,6 +13,7 @@ import (
 )
 
 func Outputs(clspec *logging.ClusterLoggingSpec, secrets map[string]*corev1.Secret, clfspec *logging.ClusterLogForwarderSpec, op Options) []Element {
+	var secret *corev1.Secret
 	outputs := []Element{
 		Comment("Ship logs to specific outputs"),
 	}
@@ -24,7 +25,13 @@ func Outputs(clspec *logging.ClusterLoggingSpec, secrets map[string]*corev1.Secr
 		bufspec = clspec.Forwarder.Fluentd.Buffer
 	}
 	for _, o := range clfspec.Outputs {
-		secret := secrets[o.Name]
+
+		if o.Secret == nil {
+			secret = secrets[o.Name]
+		} else {
+			secret = secrets[o.Secret.Name]
+		}
+
 		switch o.Type {
 		case logging.OutputTypeElasticsearch:
 			outputs = MergeElements(outputs, elasticsearch.Conf(bufspec, secret, o, op))

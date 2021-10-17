@@ -83,15 +83,12 @@ func (f *FluentdFunctionalFramework) addKafkaOutput(b *runtime.PodBuilder, outpu
 	}
 
 	//Doing below at the time of creating spec for fluentd container now as tls.key, tls.crts need to be mounted on fluentd pod
-	//brokersecret := kafka.NewBrokerSecretFunctionalTestPod(b.Pod.Namespace)
-	//if err := f.Test.Client.Create(brokersecret); err != nil {
-	//	return err
-	//}
+
 	//add broker secret containing keys,certs for secure connection in the below fluentd container
 
-	b.AddSecretVolume("kafka-certs", kafka.DeploymentName).
+	b.AddSecretVolume("kafka-receiver", kafka.DeploymentName).
 		GetContainer(constants.CollectorName).
-		AddVolumeMount("kafka-certs", "/var/run/ocp-collector/secrets/kafka-certs", "", true)
+		AddVolumeMount("kafka-receiver", "/var/run/ocp-collector/secrets/kafka-receiver", "", true)
 
 	//	fluentKafkaConf := kafka.FluentKafkaConf
 
@@ -120,7 +117,7 @@ func (f *FluentdFunctionalFramework) addKafkaOutput(b *runtime.PodBuilder, outpu
 		AddVolumeMount("brokerconfig", "/etc/kafka-configmap", "", false).
 		AddVolumeMount("configkafka", "/etc/kafka", "", false).
 		AddVolumeMount("brokerlogs", "/opt/kafka/logs", "", false).
-		AddVolumeMount("kafka-certs", "/var/run/ocp-collector/secrets/kafka-certs", "", false).
+		AddVolumeMount("kafka-receiver", "/var/run/ocp-collector/secrets/kafka-receiver", "", false).
 		AddEnvVar("extensions", "/opt/kafka/libs/extensions").
 		AddEnvVar("data", "/var/lib/kafka/data").
 		End().
@@ -148,7 +145,7 @@ func (f *FluentdFunctionalFramework) addKafkaOutput(b *runtime.PodBuilder, outpu
 		b.AddContainer(containername, ImageRemoteKafka).
 			WithCmdStringSlice(cmdCreateTopicAndDeployConsumer).
 			AddVolumeMount("brokerconfig", "/etc/kafka-configmap", "", false).
-			AddVolumeMount("kafka-certs", "/var/run/ocp-collector/secrets/kafka-certs", "", false).
+			AddVolumeMount("kafka-receiver", "/var/run/ocp-collector/secrets/kafka-receiver", "", false).
 			AddVolumeMount("shared", "/shared", "", false).
 			End().
 			//AddSecretVolume("kafka-certs", kafka.DeploymentName).

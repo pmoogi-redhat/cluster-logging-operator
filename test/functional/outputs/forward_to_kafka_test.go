@@ -21,7 +21,7 @@ var _ = Describe("[LogForwarding][Kafka] Functional tests", func() {
 		framework = functional.NewFluentdFunctionalFramework()
 
 		log.V(2).Info("Creating secret for broker credentials")
-		brokersecret := kafka.NewBrokerSecret(framework.Namespace)
+		brokersecret := kafka.NewBrokerSecretFunctionalTestPod(framework.Namespace)
 		if err := framework.Test.Client.Create(brokersecret); err != nil {
 			panic(err)
 		}
@@ -50,7 +50,7 @@ var _ = Describe("[LogForwarding][Kafka] Functional tests", func() {
 	//	timestamp := "2013-03-28T14:36:03.243000+00:00"
 
 	Context("Application Logs", func() {
-		FIt("should send large message over Kafka", func() {
+		It("should send large message over Kafka", func() {
 			functional.NewClusterLogForwarderBuilder(framework.Forwarder).
 				FromInput(logging.InputNameApplication).
 				ToOutputWithVisitor(join(setKafkaSpecValues, func(spec *logging.OutputSpec) {
