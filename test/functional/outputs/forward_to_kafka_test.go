@@ -58,7 +58,7 @@ var _ = Describe("[LogForwarding][Kafka] Functional tests", func() {
 				}), logging.OutputTypeKafka)
 			Expect(framework.Deploy()).To(BeNil())
 
-			var MaxLen uint64 = 1000
+			var MaxLen int = 1000
 			Expect(framework.WritesNApplicationLogsOfSize(1, MaxLen)).To(BeNil())
 			// Read line from Kafka output
 			outputlogs, err := framework.ReadApplicationLogsFromKafka("clo-app-topic", "localhost:9092", "kafka-consumer-clo-app-topic")

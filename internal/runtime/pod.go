@@ -232,16 +232,6 @@ func (builder *PodBuilder) AddInitContainer(name, image string) *InitContainerBu
 	return &containerBuilder
 }
 
-func (builder *PodBuilder) AddEmptyDirVolume(name string) *PodBuilder {
-	builder.Pod.Spec.Volumes = append(builder.Pod.Spec.Volumes, corev1.Volume{
-		Name: name,
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
-	})
-	return builder
-}
-
 func (builder *ContainerBuilder) AddContainerPort(name string, port int32) *ContainerBuilder {
 	builder.container.Ports = append(builder.container.Ports, corev1.ContainerPort{Name: name, ContainerPort: port})
 	return builder
