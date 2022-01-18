@@ -71,7 +71,7 @@ func Reconcile(requestCluster *logging.ClusterLogging, requestClient client.Clie
 
 	// Reconcile Collection
 	if err = clusterLoggingRequest.CreateOrUpdateCollection(); err != nil {
-		telemetry.Data.CollectorErrorCount++
+		telemetry.Data.CollectorErrorCount.Inc("CollectorErrorCount")
 		return fmt.Errorf("unable to create or update collection for %q: %v", clusterLoggingRequest.Cluster.Name, err)
 	}
 
@@ -85,16 +85,16 @@ func Reconcile(requestCluster *logging.ClusterLogging, requestClient client.Clie
 	if clusterLoggingRequest.IncludesManagedStorage() {
 		updateCLInfo := UpdateInfofromCL(&clusterLoggingRequest)
 		if updateCLInfo != nil {
-			log.V(0).Info("Error in updating clusterlogging info for updating metrics", "updateCLInfo", updateCLInfo)
+			log.V(1).Info("Error in updating clusterlogging info for updating metrics", "updateCLInfo", updateCLInfo)
 		}
 		erru := telemetry.UpdateMetrics()
 		if erru != nil {
-			log.V(0).Error(erru, "Error in updating clo metrics for telemetry")
+			log.V(1).Error(erru, "Error in updating clo metrics for telemetry")
 		}
 	}
 	///////
 	//if it reaches till this point without any errors than mark CL in healthy state
-	telemetry.Data.CLInfo["healthStatus"] = "0"
+	telemetry.Data.CLInfo.Set("healthStatus", "0")
 
 	return nil
 }
@@ -141,14 +141,14 @@ func ReconcileForClusterLogForwarder(forwarder *logging.ClusterLogForwarder, req
 	///////
 	updateCLFInfo := UpdateInfofromCLF(&clusterLoggingRequest)
 	if updateCLFInfo != nil {
-		log.V(0).Info("Error in updating CLF Info for CLF specific metrics", "updateCLFInfo", updateCLFInfo)
+		log.V(1).Info("Error in updating CLF Info for CLF specific metrics", "updateCLFInfo", updateCLFInfo)
 	}
 	erru := telemetry.UpdateMetrics()
 	if erru != nil {
 		log.V(0).Error(erru, "Error in updating clo metrics for telemetry")
 	}
 	///////
-	telemetry.Data.CLFInfo["healthStatus"] = "0"
+	telemetry.Data.CLFInfo.Set("healthStatus", "0")
 
 	return nil
 }
@@ -243,20 +243,20 @@ func UpdateInfofromCL(request *ClusterLoggingRequest) (err error) {
 
 	//default LogStore is set to be internal elasticsearch cluster running within OCP
 	if clspec.LogStore != nil {
-		log.V(0).Info("LogStore Type", "clspecLogStoreType", clspec.LogStore.Type)
+		log.V(1).Info("LogStore Type", "clspecLogStoreType", clspec.LogStore.Type)
 		if clspec.LogStore.Type == "elasticsearch" {
-			telemetry.Data.CLOutputType["elasticsearch"] = "1"
+			telemetry.Data.CLOutputType.Set("elasticsearch", "1")
 		} else {
-			telemetry.Data.CLOutputType["elasticsearch"] = "0"
+			telemetry.Data.CLOutputType.Set("elasticsearch", "0")
 		}
 	}
 
 	if request.Cluster.Spec.ManagementState == logging.ManagementStateManaged || request.Cluster.Spec.ManagementState == "" {
-		log.V(0).Info("managedStatus : Managed")
-		telemetry.Data.CLInfo["managedStatus"] = "1" //Managed state indicator
+		log.V(1).Info("managedStatus : Managed")
+		telemetry.Data.CLInfo.Set("managedStatus", "1") //Managed state indicator
 	} else {
-		log.V(0).Info("managedStatus : Unmanaged")
-		telemetry.Data.CLInfo["managedStatus"] = "0" //Unmanaged state indicator
+		log.V(1).Info("managedStatus : Unmanaged")
+		telemetry.Data.CLInfo.Set("managedStatus", "0") //Unmanaged state indicator
 	}
 
 	return nil
@@ -264,55 +264,54 @@ func UpdateInfofromCL(request *ClusterLoggingRequest) (err error) {
 
 func UpdateInfofromCLF(request *ClusterLoggingRequest) (err error) {
 
+	//Here we update CLF spec parameters
+
 	var npipelines = 0
 	var output *logging.OutputSpec
 	var found bool
 
 	//CLO got two custom resources CL, CFL, CLF here is meant for forwarding logs to third party systems
-	//Here we update CLF spec parameters
 
-	//CLO CLF pipelines
+	//CLO CLF pipelines and set of output specs
 	lgpipeline := request.ForwarderSpec.Pipelines
-
-	//outputs := clf.Spec.OutputMap()
-	//var output *logging.OutputSpec
-
 	outputs := request.ForwarderSpec.OutputMap()
+	log.V(1).Info("OutputMap", "outputs", outputs)
 
 	for _, pipeline := range lgpipeline {
 		npipelines++
-		log.V(0).Info("pipelines", "npipelines", npipelines)
+		log.V(1).Info("pipelines", "npipelines", npipelines)
 		inref := pipeline.InputRefs
 		outref := pipeline.OutputRefs
 
-		for labelname := range telemetry.Data.CLFInputType {
-			log.V(0).Info("iter over labelnames", "labelname", labelname)
-			telemetry.Data.CLFInputType[labelname] = "0" //reset to zero
+		for labelname := range telemetry.Data.CLFInputType.M {
+			log.V(1).Info("iter over labelnames", "labelname", labelname)
+			telemetry.Data.CLFInputType.Set(labelname, "0") //reset to zero
 			for _, inputtype := range inref {
-				log.V(0).Info("iter over inputtype", "inputtype", inputtype)
+				log.V(1).Info("iter over inputtype", "inputtype", inputtype)
 				if inputtype == labelname {
-					log.V(0).Info("labelname and inputtype", "labelname", labelname, "inputtype", inputtype) //when matched print matched labelname with input type stated in CLF spec
-					telemetry.Data.CLFInputType[labelname] = "1"                                             //input type present in CLF spec
+					log.V(1).Info("labelname and inputtype", "labelname", labelname, "inputtype", inputtype) //when matched print matched labelname with input type stated in CLF spec
+					telemetry.Data.CLFInputType.Set(labelname, "1")                                          //input type present in CLF spec
 				}
 			}
 		}
 
-		for labelname := range telemetry.Data.CLFOutputType {
-			log.V(0).Info("iter over labelnames", "labelname", labelname)
-			telemetry.Data.CLFOutputType[labelname] = "0" //reset to zero
+		for labelname := range telemetry.Data.CLFOutputType.M {
+			log.V(1).Info("iter over labelnames", "labelname", labelname)
+			telemetry.Data.CLFOutputType.Set(labelname, "0") //reset to zero
 			for _, outputname := range outref {
-				if output, found = outputs[outputname]; !found {
+				log.V(1).Info("iter over outref", "outputname", outputname)
+				output, found = outputs[outputname]
+				if found {
 					outputtype := output.Type
-					log.V(0).Info("iter over outputtype", "outputtype", outputtype)
 					if outputtype == labelname {
-						log.V(0).Info("labelname and outputtype", "labelname", labelname, "outputtype", outputtype)
-						telemetry.Data.CLFOutputType[labelname] = "1" //when matched print matched labelname with output type stated in CLF spec
+						log.V(1).Info("labelname and outputtype", "labelname", labelname, "outputtype", outputtype)
+						telemetry.Data.CLFOutputType.Set(labelname, "1") //when matched print matched labelname with output type stated in CLF spec
 					}
 				}
 			}
 		}
-		log.V(0).Info("post updating inputtype outputtype")
-		telemetry.Data.CLFInfo["pipelineInfo"] = strconv.Itoa(npipelines)
+		log.V(1).Info("post updating inputtype and outputtype")
+		telemetry.Data.CLFInfo.Set("pipelineInfo", strconv.Itoa(npipelines))
 	}
 	return nil
 }

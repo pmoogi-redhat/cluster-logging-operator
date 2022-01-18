@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"github.com/openshift/cluster-logging-operator/internal/utils"
 	"github.com/openshift/cluster-logging-operator/version"
 	"github.com/prometheus/client_golang/prometheus"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -8,23 +9,23 @@ import (
 
 // placeholder for keeping clo info which will be used for clo metrics update
 type TData struct {
-	CLInfo              map[string]string
-	CLOutputType        map[string]string
-	CollectorErrorCount float64
-	CLFInfo             map[string]string
-	CLFInputType        map[string]string
-	CLFOutputType       map[string]string
+	CLInfo              utils.StringMap
+	CLOutputType        utils.StringMap
+	CollectorErrorCount utils.Float64Map
+	CLFInfo             utils.StringMap
+	CLFInputType        utils.StringMap
+	CLFOutputType       utils.StringMap
 }
 
 // "0" stands for managedStatus and healthStatus true and healthy
 func NewTD() *TData {
 	return &TData{
-		CLInfo:              map[string]string{"version": version.Version, "managedStatus": "0", "healthStatus": "0"},
-		CLOutputType:        map[string]string{"elasticsearch": "0"},
-		CollectorErrorCount: 0,
-		CLFInfo:             map[string]string{"healthStatus": "0", "pipelineInfo": "1"},
-		CLFInputType:        map[string]string{"application": "1", "audit": "0", "infrastructure": "0"},
-		CLFOutputType:       map[string]string{"default": "1", "elasticsearch": "0", "fluentdForward": "0", "syslog": "0", "kafka": "0", "loki": "0", "cloudwatch": "0"},
+		CLInfo:              utils.StringMap{M: map[string]string{"version": version.Version, "managedStatus": "0", "healthStatus": "0"}},
+		CLOutputType:        utils.StringMap{M: map[string]string{"elasticsearch": "0"}},
+		CollectorErrorCount: utils.Float64Map{M: map[string]float64{"CollectorErrorCount": 0}},
+		CLFInfo:             utils.StringMap{M: map[string]string{"healthStatus": "0", "pipelineInfo": "1"}},
+		CLFInputType:        utils.StringMap{M: map[string]string{"application": "1", "audit": "0", "infrastructure": "0"}},
+		CLFOutputType:       utils.StringMap{M: map[string]string{"default": "1", "elasticsearch": "0", "fluentdForward": "0", "syslog": "0", "kafka": "0", "loki": "0", "cloudwatch": "0"}},
 	}
 }
 
@@ -79,11 +80,11 @@ func RegisterMetrics() error {
 
 func UpdateMetrics() error {
 
-	CLInfo := Data.CLInfo
-	CollectorErrorCount := Data.CollectorErrorCount
-	CLFInfo := Data.CLFInfo
-	CLFInputType := Data.CLFInputType
-	CLFOutputType := Data.CLFOutputType
+	CLInfo := Data.CLInfo.M
+	CErrorCount := Data.CollectorErrorCount.M
+	CLFInfo := Data.CLFInfo.M
+	CLFInputType := Data.CLFInputType.M
+	CLFOutputType := Data.CLFOutputType.M
 
 	mCLInfo.With(prometheus.Labels{
 		"version":       CLInfo["version"],
@@ -91,7 +92,7 @@ func UpdateMetrics() error {
 		"healthStatus":  CLInfo["healthStatus"]}).Set(1)
 
 	mCollectorErrorCount.With(prometheus.Labels{
-		"version": CLInfo["version"]}).Set(CollectorErrorCount)
+		"version": CLInfo["version"]}).Set(CErrorCount["CollectorErrorCount"])
 
 	mCLFInfo.With(prometheus.Labels{
 		"healthStatus": CLFInfo["healthStatus"],

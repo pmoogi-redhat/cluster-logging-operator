@@ -24,9 +24,9 @@ var _ = Describe("telemetry", func() {
 		data          = NewTD()
 		mdir          string
 		smYamlFile    string
-		CLinfo        = data.CLInfo
-		CLFinputType  = data.CLFInputType
-		CLFoutputType = data.CLFOutputType
+		CLinfo        = data.CLInfo.M
+		CLFinputType  = data.CLFInputType.M
+		CLFoutputType = data.CLFOutputType.M
 		manifestFile  string
 	)
 
@@ -71,7 +71,7 @@ var _ = Describe("telemetry", func() {
 	Describe("Testing updating metrics for prometheus", func() {
 		Context("Updating metrics for prometheus", func() {
 			It("Show metrics updated without throwing any errors", func() {
-				data.CLInfo["version"] = "0.0.2"
+				CLinfo["version"] = "0.0.2"
 				err := UpdateMetrics()
 				fmt.Printf("UpdateMetrics call returns %v", err)
 				Expect(err).Should(BeNil())
