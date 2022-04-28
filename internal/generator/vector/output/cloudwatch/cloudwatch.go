@@ -45,7 +45,7 @@ create_missing_stream = true
 compression = "none"
 encoding.codec = "json"
 request.concurrency = 2
-group_name = "{{"{{ Cw_groupName }}"}}-%h-%m"
+group_name = "{{"{{ Cw_groupName }}"}}-%Y-%m"
 stream_name = "{{"{{ Cw_streamName }}"}}"
 {{- end}}
 `
@@ -59,8 +59,46 @@ func AddCwGroupNameCw_streamName(groupbytype string, logGroupPrefix string, id s
 		GroupBy:        groupbytype,
 		LogGroupPrefix: logGroupPrefix,
 		VRL: strings.TrimSpace(`
-.Cw_groupName =  "{{ LogGroupPrefix }}-{{ log_type }}"
-.Cw_streamName = "{{ LogGroupPrefix }}-{{ log_type }}"
+
+   if (.GroupBy == "logType") {
+
+      .Cw_groupName = .log_type
+     
+  
+   } else if ( .GroupBy == "namespaceName" ) {
+   
+
+       if ( .kubernetes.namespace_name != null ) {
+
+        .Cw_groupName = ( .kubernetes.namespace_name + "." + .log_type ) ?? {}
+ 
+       } else {
+
+        .Cw_groupName = .log_type
+
+       }
+     
+       
+   } else if ( .GroupBy == "namespaceUUID" ) {
+   
+
+       if ( .kubernetes.namespace_name != null ) {
+
+        .Cw_groupName = ( .LogGroupPrefix + "." + .kubernetes.namespace_name + "." + .log_type ) ?? {}
+
+       } else {
+
+         .Cw_groupName = ( .LogGroupPrefix + "." + .log_type ) ?? {}
+
+       }
+     
+   } else {
+
+      .Cw_groupName = .log_type
+  
+   } 
+      .Cw_streamName = ( .log_type + "." + .host )  ?? {} 
+
 `),
 	}
 }

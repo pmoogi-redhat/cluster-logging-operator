@@ -57,8 +57,44 @@ inputs = ["application-logs"]
 source = """
 .GroupBy = "logType"
 .LogGroupPrefix = "all-logs"
-  .Cw_groupName =  "{{ LogGroupPrefix }}-{{ log_type }}"
-  .Cw_streamName = "{{ LogGroupPrefix }}-{{ log_type }}"
+  if (.GroupBy == "logType") {
+  
+        .Cw_groupName = .log_type
+       
+    
+     } else if ( .GroupBy == "namespaceName" ) {
+     
+  
+         if ( .kubernetes.namespace_name != null ) {
+  
+          .Cw_groupName = ( .kubernetes.namespace_name + "." + .log_type ) ?? {}
+   
+         } else {
+  
+          .Cw_groupName = .log_type
+  
+         }
+       
+         
+     } else if ( .GroupBy == "namespaceUUID" ) {
+     
+  
+         if ( .kubernetes.namespace_name != null ) {
+  
+          .Cw_groupName = ( .LogGroupPrefix + "." + .kubernetes.namespace_name + "." + .log_type ) ?? {}
+  
+         } else {
+  
+           .Cw_groupName = ( .LogGroupPrefix + "." + .log_type ) ?? {}
+  
+         }
+       
+     } else {
+  
+        .Cw_groupName = .log_type
+    
+     } 
+        .Cw_streamName = ( .log_type + "." + .host )  ?? {}
 """
 
 [sinks.cw]
@@ -70,10 +106,10 @@ create_missing_stream = true
 compression = "none"
 encoding.codec = "json"
 request.concurrency = 2
-group_name = "{{ Cw_groupName }}-%h-%m"
+group_name = "{{ Cw_groupName }}-%Y-%m"
 stream_name = "{{ Cw_streamName }}"
-auth.access_key_id = xXyYzZ
-auth.secret_access_key = sSxXyYzZ
+auth.access_key_id = "xXyYzZ"
+auth.secret_access_key = "sSxXyYzZ"
 `,
 		}),
 		Entry("without security", generator.ConfGenerateTest{
@@ -103,8 +139,44 @@ inputs = ["application-logs"]
 source = """
 .GroupBy = "logType"
 .LogGroupPrefix = "all-logs"
-  .Cw_groupName =  "{{ LogGroupPrefix }}-{{ log_type }}"
-  .Cw_streamName = "{{ LogGroupPrefix }}-{{ log_type }}"
+  if (.GroupBy == "logType") {
+  
+        .Cw_groupName = .log_type
+       
+    
+     } else if ( .GroupBy == "namespaceName" ) {
+     
+  
+         if ( .kubernetes.namespace_name != null ) {
+  
+          .Cw_groupName = ( .kubernetes.namespace_name + "." + .log_type ) ?? {}
+   
+         } else {
+  
+          .Cw_groupName = .log_type
+  
+         }
+       
+         
+     } else if ( .GroupBy == "namespaceUUID" ) {
+     
+  
+         if ( .kubernetes.namespace_name != null ) {
+  
+          .Cw_groupName = ( .LogGroupPrefix + "." + .kubernetes.namespace_name + "." + .log_type ) ?? {}
+  
+         } else {
+  
+           .Cw_groupName = ( .LogGroupPrefix + "." + .log_type ) ?? {}
+  
+         }
+       
+     } else {
+  
+        .Cw_groupName = .log_type
+    
+     } 
+        .Cw_streamName = ( .log_type + "." + .host )  ?? {}
 """
 
 [sinks.cw]
@@ -116,7 +188,7 @@ create_missing_stream = true
 compression = "none"
 encoding.codec = "json"
 request.concurrency = 2
-group_name = "{{ Cw_groupName }}-%h-%m"
+group_name = "{{ Cw_groupName }}-%Y-%m"
 stream_name = "{{ Cw_streamName }}"
 `,
 		}),
